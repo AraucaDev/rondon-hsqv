@@ -1,12 +1,12 @@
-// api/fal.js — Proxy serverless para fal.ai
-// La API key vive SOLO aquí, del lado del servidor. El navegador del fan nunca la ve.
+// api/fal.js — Proxy serverless para fal.ai (CommonJS)
+// La API key vive SOLO aqui, del lado del servidor. El navegador del fan nunca la ve.
 // El front llama a /api/fal con { accion, endpoint, payload, requestId }.
 // acciones soportadas: "submit" | "run" | "status" | "result"
 
 const FAL_BASE = "https://queue.fal.run";
 
-export default async function handler(req, res) {
-  // CORS básico (mismo origen en producción; permisivo para pruebas)
+module.exports = async function handler(req, res) {
+  // CORS basico
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
   const FAL_KEY = process.env.FAL_KEY;
   if (!FAL_KEY) {
-    res.status(500).json({ error: "FAL_KEY no está configurada en el servidor." });
+    res.status(500).json({ error: "FAL_KEY no esta configurada en el servidor." });
     return;
   }
 
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   }
 
   const authHeaders = {
-    "Authorization": `Key ${FAL_KEY}`,
+    "Authorization": "Key " + FAL_KEY,
     "Content-Type": "application/json"
   };
 
@@ -51,41 +51,33 @@ export default async function handler(req, res) {
     let fetchOpts;
 
     if (accion === "submit") {
-      // Encolar un trabajo. Devuelve { request_id, ... }
-      if (!endpoint) return res.status(400).json({ error: "Falta 'endpoint' para submit." });
-      falUrl = `${FAL_BASE}/${endpoint}`;
+      if (!endpoint) { res.status(400).json({ error: "Falta 'endpoint' para submit." }); return; }
+      falUrl = FAL_BASE + "/" + endpoint;
       fetchOpts = { method: "POST", headers: authHeaders, body: JSON.stringify(payload || {}) };
 
     } else if (accion === "run") {
-      // Ejecución síncrona (espera el resultado). Mismo endpoint que submit.
-      if (!endpoint) return res.status(400).json({ error: "Falta 'endpoint' para run." });
-      falUrl = `${FAL_BASE}/${endpoint}`;
+      if (!endpoint) { res.status(400).json({ error: "Falta 'endpoint' para run." }); return; }
+      falUrl = FAL_BASE + "/" + endpoint;
       fetchOpts = { method: "POST", headers: authHeaders, body: JSON.stringify(payload || {}) };
 
     } else if (accion === "status") {
-      // Consultar estado de un trabajo encolado.
-      if (!endpoint || !requestId) {
-        return res.status(400).json({ error: "Faltan 'endpoint' o 'requestId' para status." });
-      }
-      falUrl = `${FAL_BASE}/${endpoint}/requests/${requestId}/status`;
+      if (!endpoint || !requestId) { res.status(400).json({ error: "Faltan 'endpoint' o 'requestId' para status." }); return; }
+      falUrl = FAL_BASE + "/" + endpoint + "/requests/" + requestId + "/status";
       fetchOpts = { method: "GET", headers: authHeaders };
 
     } else if (accion === "result") {
-      // Traer el resultado de un trabajo terminado.
-      if (!endpoint || !requestId) {
-        return res.status(400).json({ error: "Faltan 'endpoint' o 'requestId' para result." });
-      }
-      falUrl = `${FAL_BASE}/${endpoint}/requests/${requestId}`;
+      if (!endpoint || !requestId) { res.status(400).json({ error: "Faltan 'endpoint' o 'requestId' para result." }); return; }
+      falUrl = FAL_BASE + "/" + endpoint + "/requests/" + requestId;
       fetchOpts = { method: "GET", headers: authHeaders };
 
     } else {
-      return res.status(400).json({ error: `Acción desconocida: ${accion}` });
+      res.status(400).json({ error: "Accion desconocida: " + accion });
+      return;
     }
 
     const falRes = await fetch(falUrl, fetchOpts);
     const text = await falRes.text();
 
-    // Reenviar tal cual el JSON de fal (o el texto si no es JSON).
     let data;
     try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
 
@@ -94,4 +86,4 @@ export default async function handler(req, res) {
   } catch (err) {
     res.status(502).json({ error: "Error al contactar fal.ai", detalle: String(err && err.message || err) });
   }
-}
+};

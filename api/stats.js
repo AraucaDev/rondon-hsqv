@@ -1,9 +1,8 @@
-// api/stats.js — Endpoint opcional de estadísticas.
-// Si configuras SUPABASE_URL y SUPABASE_KEY como variables de entorno,
-// registra cada evento (video generado) en la tabla hsqv_eventos.
+// api/stats.js — Endpoint opcional de estadisticas (CommonJS).
+// Si configuras SUPABASE_URL y SUPABASE_KEY, registra eventos en hsqv_eventos.
 // Si NO las configuras, responde OK sin hacer nada (no rompe la app).
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -13,7 +12,6 @@ export default async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-  // Sin Supabase configurado: no-op silencioso.
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     res.status(200).json({ ok: true, logged: false, note: "Supabase no configurado." });
     return;
@@ -21,7 +19,7 @@ export default async function handler(req, res) {
 
   const headers = {
     "apikey": SUPABASE_KEY,
-    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Authorization": "Bearer " + SUPABASE_KEY,
     "Content-Type": "application/json"
   };
 
@@ -31,7 +29,6 @@ export default async function handler(req, res) {
       if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
       body = body || {};
 
-      // Ciudad por geo-IP (cabecera de Vercel) si no viene en el body.
       const ciudad = body.ciudad || req.headers["x-vercel-ip-city"] || "desconocida";
       const evento = {
         tipo: body.tipo || "video_generado",
@@ -40,9 +37,9 @@ export default async function handler(req, res) {
         creado_en: new Date().toISOString()
       };
 
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/hsqv_eventos`, {
+      const r = await fetch(SUPABASE_URL + "/rest/v1/hsqv_eventos", {
         method: "POST",
-        headers: { ...headers, "Prefer": "return=minimal" },
+        headers: Object.assign({}, headers, { "Prefer": "return=minimal" }),
         body: JSON.stringify(evento)
       });
 
@@ -51,18 +48,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      // Conteo agregado para un dashboard simple.
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/hsqv_eventos?select=ciudad`, { headers });
+      const r = await fetch(SUPABASE_URL + "/rest/v1/hsqv_eventos?select=ciudad", { headers });
       const rows = await r.json();
       const total = Array.isArray(rows) ? rows.length : 0;
       const porCiudad = {};
-      if (Array.isArray(rows)) rows.forEach(x => { porCiudad[x.ciudad] = (porCiudad[x.ciudad] || 0) + 1; });
-      res.status(200).json({ total, porCiudad });
+      if (Array.isArray(rows)) rows.forEach(function(x){ porCiudad[x.ciudad] = (porCiudad[x.ciudad] || 0) + 1; });
+      res.status(200).json({ total: total, porCiudad: porCiudad });
       return;
     }
 
-    res.status(405).json({ error: "Método no permitido." });
+    res.status(405).json({ error: "Metodo no permitido." });
   } catch (err) {
     res.status(502).json({ error: "Error con Supabase", detalle: String(err && err.message || err) });
   }
-}
+};
