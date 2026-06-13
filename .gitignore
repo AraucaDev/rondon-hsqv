@@ -1,0 +1,14 @@
+# Variables de entorno (NUNCA subir la API key)
+.env
+.env.local
+.env*.local
+
+# Dependencias
+node_modules/
+
+# Vercel
+.vercel
+
+# Sistema
+.DS_Store
+*.log

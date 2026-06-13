@@ -1,0 +1,9 @@
+{
+  "name": "rondon-hsqv",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App generadora de video para fans — Hazme Sentir Que Vuelo (Rondón)",
+  "engines": {
+    "node": ">=18.x"
+  }
+}
