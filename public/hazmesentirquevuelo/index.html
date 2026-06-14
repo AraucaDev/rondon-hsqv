@@ -73,7 +73,7 @@ input[type=range].vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;h
 .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
 .upload-label{font-size:13px;color:#fff;font-weight:600;margin-bottom:3px;}
 .upload-hint{font-size:11px;color:#ffffffaa;}
-.photos-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.photos-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:240px;margin:0 auto;}
 .pslot{aspect-ratio:1;border-radius:8px;border:1.5px dashed #ffffff33;background:#ffffff0a;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
 .pslot.filled{border-color:#F5C84444;border-style:solid;}
 .pslot img{width:100%;height:100%;object-fit:cover;}
@@ -343,16 +343,13 @@ a.artist-name:hover{color:#F5C842 !important;}
       <input type="file" id="fileInput" accept="image/*" multiple>
       <div style="font-size:26px;margin-bottom:6px">&#9729;&#65039;</div>
       <div class="upload-label">Toca para subir tu foto</div>
-      <div class="upload-hint">Foto de frente &middot; JPG o PNG</div>
+      <div class="upload-hint">Una foto de frente basta &middot; JPG o PNG</div>
     </div>
     <div class="photos-grid" id="photosGrid">
       <div class="pslot" id="slot0"><span style="font-size:16px;color:#ffffff44">+</span></div>
       <div class="pslot" id="slot1"><span style="font-size:16px;color:#ffffff44">+</span></div>
-      <div class="pslot" id="slot2"><span style="font-size:16px;color:#ffffff44">+</span></div>
-      <div class="pslot" id="slot3"><span style="font-size:16px;color:#ffffff44">+</span></div>
-      <div class="pslot" id="slot4"><span style="font-size:16px;color:#ffffff44">+</span></div>
     </div>
-    <div class="info-card"><strong>Tip:</strong> una foto de frente bien iluminada da el mejor resultado. Puedes sumar perfil y tres cuartos para mayor fidelidad.</div>
+    <div class="info-card"><strong>Tip:</strong> con una sola foto de frente, bien iluminada y clara, es suficiente. Puedes sumar una segunda si quieres.</div>
     <div class="limit-banner" id="limitBanner"></div>
     <button class="btn-p" id="btnStart" disabled>&#10024; Crear mi video</button>
     <div class="limit-counter" id="limitCounter"></div>
@@ -489,8 +486,8 @@ function removeGestureListeners(){
 aud.addEventListener("canplay",()=>{if(!audioStarted)tryPlay();});
 
 // FILES
-document.getElementById("fileInput").addEventListener("change",e=>{Array.from(e.target.files).forEach(f=>{if(files.length<5)files.push(f);});renderSlots();});
-function renderSlots(){for(let i=0;i<5;i++){const s=document.getElementById("slot"+i);if(files[i]){const u=URL.createObjectURL(files[i]);s.className="pslot filled";s.innerHTML=`<img src="${u}"><button class="pdel" onclick="df(${i})">x</button>${i===0?'<span class="pbadge">PRINCIPAL</span>':''}`;}else{s.className="pslot";s.innerHTML='<span style="font-size:16px;color:#ffffff44">+</span>';}}document.getElementById("btnStart").disabled=files.length===0;}
+document.getElementById("fileInput").addEventListener("change",e=>{Array.from(e.target.files).forEach(f=>{if(files.length<2)files.push(f);});renderSlots();});
+function renderSlots(){for(let i=0;i<2;i++){const s=document.getElementById("slot"+i);if(files[i]){const u=URL.createObjectURL(files[i]);s.className="pslot filled";s.innerHTML=`<img src="${u}"><button class="pdel" onclick="df(${i})">x</button>${i===0?'<span class="pbadge">PRINCIPAL</span>':''}`;}else{s.className="pslot";s.innerHTML='<span style="font-size:16px;color:#ffffff44">+</span>';}}document.getElementById("btnStart").disabled=files.length===0;}
 window.df=i=>{files.splice(i,1);renderSlots();};
 
 // UN SOLO BOTON: pasa al panel 2 y encadena composicion -> video automaticamente
@@ -671,9 +668,54 @@ function showVideo(url,withMusic){
   if(note)note.textContent=withMusic?"♪ Tu video incluye el coro de Hazme Sentir Que Vuelo":"Video listo (sin musica embebida). Puedes agregar la cancion al subirlo.";
   // El primer botón "Descargar" ahora abre el pop-up de instrucciones
   document.getElementById("btnDownload").onclick=()=>{openShareModal();};
-  // El botón dentro del pop-up ejecuta la descarga real
+  // El botón dentro del pop-up ejecuta la descarga real (robusta para móvil)
   const dlConfirm=document.getElementById("btnDownloadConfirm");
-  if(dlConfirm)dlConfirm.onclick=()=>{const a=document.createElement("a");a.href=url;a.download="HSQV_Rondon_"+Date.now()+".mp4";a.click();closeShareModal();showShareToast();};
+  if(dlConfirm)dlConfirm.onclick=()=>{descargarVideo(url);};
+}
+
+// Descarga robusta: trae el video como blob y lo guarda/comparte.
+// En móvil usa Web Share API (permite "Guardar en galería" / compartir a Instagram).
+// En escritorio descarga el archivo .mp4 directo.
+async function descargarVideo(videoUrl){
+  const btn=document.getElementById("btnDownloadConfirm");
+  const txtOrig=btn?btn.innerHTML:"";
+  try{
+    if(btn){btn.disabled=true;btn.innerHTML="Preparando descarga...";}
+    // 1. Traer el video como blob (resuelve el problema cross-origin de fal.media)
+    const resp=await fetch(videoUrl);
+    const blob=await resp.blob();
+    const fileName="HSQV_Rondon_"+Date.now()+".mp4";
+    const file=new File([blob],fileName,{type:"video/mp4"});
+
+    // 2. En móvil: intentar Web Share API con archivo (lo ideal — guarda en galería / comparte)
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file],title:"Hazme Sentir Que Vuelo",text:"Mi video con Rondón 🦜 #HazmeSentirQueVuelo @soy.rondon"});
+        if(btn){btn.disabled=false;btn.innerHTML=txtOrig;}
+        closeShareModal();showShareToast();
+        return;
+      }catch(shareErr){
+        // Si el usuario cancela el share, no forzamos descarga
+        if(shareErr && shareErr.name==="AbortError"){if(btn){btn.disabled=false;btn.innerHTML=txtOrig;}return;}
+        // Si share falla por otra razón, caemos a descarga por blob abajo
+      }
+    }
+
+    // 3. Descarga por blob URL (funciona en escritorio y como respaldo en móvil)
+    const blobUrl=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=blobUrl;a.download=fileName;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(blobUrl),4000);
+    if(btn){btn.disabled=false;btn.innerHTML=txtOrig;}
+    closeShareModal();showShareToast();
+
+  }catch(err){
+    // 4. Último respaldo: abrir el video en pestaña nueva para que lo guarde manual
+    if(btn){btn.disabled=false;btn.innerHTML=txtOrig;}
+    window.open(videoUrl,"_blank");
+    closeShareModal();
+  }
 }
 
 async function tryM(mid,payload,lid){
