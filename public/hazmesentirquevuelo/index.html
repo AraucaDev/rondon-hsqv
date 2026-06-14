@@ -259,6 +259,11 @@ a.artist-name:hover{color:#F5C842 !important;}
 .sm-title{font-family:"Manrope",sans-serif;font-size:17px;font-weight:800;color:#F5C842;margin-bottom:4px;}
 .sm-sub{font-family:"Manrope",sans-serif;font-size:13px;color:#ffffffcc;margin-bottom:1rem;}
 
+
+/* CORRECCIÓN: ocultar el log técnico, mostrar solo progreso amigable */
+#logBox, .lbox{display:none !important;}
+.countdown-num{font-weight:800;color:#F5C842;}
+
 </style>
 </head>
 <body>
@@ -364,7 +369,7 @@ a.artist-name:hover{color:#F5C842 !important;}
       <div class="spinner"></div>
       <div class="stitle" id="workTitle">Componiendo tu escena...</div>
       <div class="ssub" id="workSub">Esto toma 2&ndash;4 minutos. No cierres esta ventana.</div>
-      <div class="ppill"><div class="pdot"></div><span id="phaseText">Iniciando...</span></div>
+      <div class="ppill"><div class="pdot"></div><span id="phaseText">Preparando...</span></div>
       <img id="compImg" class="rimg" style="display:none;margin-top:.75rem">
       <div id="approveBlock" style="display:none;margin-top:.85rem">
         <div style="text-align:center;font-family:'Manrope',sans-serif;font-size:12px;color:#ffffffcc;margin-bottom:.6rem">¿Te gusta cómo quedó tu foto en la escena?</div>
@@ -579,7 +584,7 @@ let lastVideoRequest=null; // request_id + response_url para recuperacion
 async function makeVideo(){
   document.getElementById("workTitle").textContent="La guacamaya esta llegando...";
   document.getElementById("workSub").textContent="Animando tu video. Esto toma 2–4 minutos, no cierres la ventana.";
-  setPT("Enviando a Veo...");
+  setPT("Preparando la animación...");
   log("logBox","Enviando a Veo 3.1 Fast...");
   const res=await falSubmit("fal-ai/veo3.1/fast/image-to-video",
     {image_url:composedUrl,prompt:MACAW_P,aspect_ratio:"9:16",duration:"6s",generate_audio:false,resolution:"720p"});
@@ -688,19 +693,26 @@ async function tryM(mid,payload,lid){
 function getUrl(r){return r?.images?.[0]?.url||r?.image?.url||null;}
 
 async function poll(rid,mid,lid,pid,max,rUrl){
-  const ph=["En cola...","Generando...","Procesando...","Casi listo..."];let pi=0;
+  // estimado de duración total de esta fase (segundos) = iteraciones * 6s
+  const totalEst=max*6;
   for(let i=0;i<max;i++){
     await new Promise(r=>setTimeout(r,6000));
+    // Cuenta regresiva amigable: segundos estimados restantes (mínimo 5s para no llegar a 0 bruscamente)
+    if(pid){
+      const restante=Math.max(5,totalEst-(i+1)*6);
+      const txt = restante>=60
+        ? `Tiempo estimado: ~${Math.ceil(restante/60)} min`
+        : `Tiempo estimado: ~${restante} segundos`;
+      document.getElementById(pid).innerHTML=txt;
+    }
     try{
       const d=await falStatus(mid,rid);
-      if(!d){if(i%5===0)log(lid,`[${i+1}] Esperando...`);if(pid)document.getElementById(pid).textContent=ph[pi=(pi+1)%ph.length];continue;}
+      if(!d){continue;}
       const st=(d.status||d.state||"").toUpperCase();
-      if(i%4===0)log(lid,`[${i+1}] ${st||"procesando"}`);
-      if(d.video?.url){log(lid,"Listo.");return d;}
-      if(d.images?.[0]){log(lid,"Listo.");return d;}
-      if(st==="COMPLETED"){const rr=await falResult(mid,rid);if(!rr)throw new Error("Resultado vacio.");log(lid,"Completado.");return rr;}
+      if(d.video?.url){if(pid)document.getElementById(pid).textContent="¡Listo!";return d;}
+      if(d.images?.[0]){if(pid)document.getElementById(pid).textContent="¡Listo!";return d;}
+      if(st==="COMPLETED"){const rr=await falResult(mid,rid);if(!rr)throw new Error("Resultado vacio.");if(pid)document.getElementById(pid).textContent="¡Listo!";return rr;}
       if(st==="FAILED")throw new Error("Generacion fallida.");
-      if(pid)document.getElementById(pid).textContent=ph[pi=(pi+1)%ph.length];
     }catch(e){if(e.message.includes("fallida")||e.message.includes("FAILED"))throw e;}
   }
   throw new Error("Tiempo agotado. El video sigue procesando.");
